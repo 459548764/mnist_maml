@@ -10,6 +10,7 @@ class Model:
         self._params = None
         self._grads = None
         self._acc = None
+        self._optimize = None
         self._name = model_name
         self._build_model()
         self._build_gradients()
@@ -38,6 +39,7 @@ class Model:
         for grad, var in grad_var:
             self._grads.update({var.name: grad})
             self._params.update({var.name: var})
+        self._optimize = adam_opt.apply_gradients(grad_var)
 
     def _build_accuracy(self):
         # Calculate accuracy
@@ -48,6 +50,10 @@ class Model:
     def compute_params_and_grads(self, x, y):
         feed_dict = {self._x: x, self._y: y}
         return self._sess.run([self._params, self._grads], feed_dict=feed_dict)
+
+    def optimize(self, x, y):
+        feed_dict = {self._x: x, self._y: y}
+        self._sess.run([self._optimize], feed_dict=feed_dict)
 
     def compute_acc(self, x, y):
         feed_dict = {self._x: x, self._y: y}
