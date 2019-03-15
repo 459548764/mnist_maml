@@ -1,35 +1,56 @@
+from datetime import datetime
+import os
+
 import tensorflow as tf
+from tensorflow.keras.layers import Layer
 
 
 class Model:
-    def __init__(self, sess, model_name="model"):
+    def __init__(self,
+                 layers,
+                 param_in,
+                 param_out,
+                 sess,
+                 learning_rate=0.001,
+                 model_name="model"):
+        assert len(layers) > 0 and [type(layer) is Layer for layer in layers]
         self._sess = sess
         self._x = None
         self._y = None
         self._out = None
+        self._param_in = param_in
+        self._param_out = param_out
+        self._layers = layers
         self._params = None
         self._grads = None
         self._acc = None
         self._optimize = None
+        self._learning_rate = learning_rate
         self._name = model_name
         self._build_model()
         self._build_gradients()
         self._build_accuracy()
+        var_list = [
+            var for var in tf.get_collection(
+                tf.GraphKeys.TRAINABLE_VARIABLES, scope=self._name)
+        ]
+        self._saver = tf.train.Saver(var_list)
 
     def _build_model(self):
-        # Model inputs
-        self._x = tf.placeholder(shape=(None, 28, 28), dtype='float32')
-        self._y = tf.placeholder(shape=(None, ), dtype='int64')
+        # Model input/output
+        self._x = tf.placeholder(**self._param_in)
+        self._y = tf.placeholder(**self._param_out)
+        layer_in = self._x
         # Model layers
-        x_flat = tf.layers.Flatten()(self._x)
-        with tf.variable_scope(self._name, values=[x_flat]):
-            hidden_1 = tf.layers.dense(x_flat, 512, activation=tf.nn.relu)
-            hidden_2 = tf.nn.dropout(hidden_1, rate=0.2)
-            self._out = tf.layers.dense(hidden_2, 10, activation=tf.nn.softmax)
+        with tf.variable_scope(self._name, values=[layer_in]):
+            for layer in self._layers:
+                layer_out = layer(layer_in)
+                layer_in = layer_out
+            self._out = layer_out
 
     def _build_gradients(self):
         loss = tf.losses.sparse_softmax_cross_entropy(self._y, self._out)
-        adam_opt = tf.train.AdamOptimizer()
+        adam_opt = tf.train.AdamOptimizer(self._learning_rate)
         grad_var = adam_opt.compute_gradients(loss)
 
         # Gradients where keys are the TF variable names
@@ -66,3 +87,12 @@ class Model:
             if i.name in params:
                 assign_ops.append(i.assign(params[i.name]))
         self._sess.run(assign_ops)
+
+    def save_model(self):
+        model_path = "data/" + self._name + "_" + datetime.now().strftime(
+            "%H_%M_%m_%d_%y")
+        os.makedirs(model_path)
+        self._saver.save(self._sess, model_path + "/" + self._name)
+
+    def restore_model(self, save_path):
+        self._saver.restore(self._sess, save_path)

@@ -14,45 +14,37 @@ import tensorflow as tf
 class Maml:
     def __init__(self,
                  model,
-                 x_train,
-                 y_train,
-                 x_test,
-                 y_test,
-                 alpha=0.5,
-                 beta=0.5,
-                 task_size=10,
-                 batch_size=200):
+                 tasks,
+                 alpha=1.0,
+                 beta=1.0):
         self._model = model
         self._beta = beta
         self._alpha = alpha
-        self._task_size = task_size
-        self._batch_size = batch_size
-        self._x_train = x_train
-        self._y_train = y_train
-        self._x_test = x_test
-        self._y_test = y_test
+        self._tasks = tasks
 
-    def train(self, sess):
+    def train(self, sess, n_itr, restore_model_path=None):
         sess.run(tf.global_variables_initializer())
+        if restore_model_path:
+            self._model.restore_model(restore_model_path)
         done = False
-        best_acc = 0.0
-        while not done:
+        for _ in range(n_itr):
             theta = None
             theta_prime = []
-            tasks = self._sample_tasks()
-            for t_i in tasks:
+            for t_i in self._tasks:
+                t_i_x, t_i_y, _ = t_i.sample()
                 theta, grads = self._model.compute_params_and_grads(
-                    t_i["x"], t_i["y"])
+                    t_i_x, t_i_y)
                 theta_prime.append({
                     x: theta[x] - self._alpha * grads[x]
                     for x in theta if x in grads
                 })
 
             sum_grads = None
-            for t_i, theta_i in zip(tasks, theta_prime):
+            for t_i, theta_i in zip(self._tasks, theta_prime):
                 self._model.assign_model_params(theta_i)
+                t_i_x, t_i_y, _ = t_i.sample()
                 _, grads = self._model.compute_params_and_grads(
-                    t_i["x"], t_i["y"])
+                    t_i_x, t_i_y)
                 if sum_grads is None:
                     sum_grads = grads
                 else:
@@ -67,13 +59,7 @@ class Maml:
             }
             self._model.assign_model_params(theta)
 
-            acc = self._model.compute_acc(self._x_test, self._y_test)
-            print("Accuracy on test set {}".format(acc))
-
-    def _sample_tasks(self):
-        N = self._y_train.shape[0]
-        tasks = []
-        for _ in range(self._task_size):
-            ids = np.random.choice(N, self._batch_size, False)
-            tasks.append({"x": self._x_train[ids], "y": self._y_train[ids]})
-        return tasks
+            for i, t_i in enumerate(self._tasks):
+                t_i_x, t_i_y = t_i.get_test_set()
+                acc = self._model.compute_acc(t_i_x, t_i_y)
+                print("Accuracy on test set {}: {}".format(i, acc))
