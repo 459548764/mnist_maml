@@ -4,7 +4,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 
 from model import Model
-from mnist_sampler import MnistSampler
+from sampler import MnistSampler
 
 with tf.Session() as sess:
     model = Model([

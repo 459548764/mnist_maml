@@ -3,17 +3,16 @@
 import tensorflow as tf
 from tensorflow.keras import layers
 
-from maml import Maml
-from mnist_sampler import MnistSampler
+from algo import Maml
+from sampler import MnistSampler
 from model import Model
 
 
 def main():
-    known_digits = list(range(7))
     tasks = [
-        MnistSampler(known_digits + [7], batch_size=100),
-        MnistSampler(known_digits + [8], batch_size=100),
-        MnistSampler(known_digits + [9], batch_size=100)
+        MnistSampler([3, 2, 7], batch_size=10),
+        MnistSampler([1, 4, 8], batch_size=10),
+        MnistSampler([5, 6, 9], batch_size=10)
     ]
     with tf.Session() as sess:
         model = Model([
@@ -29,7 +28,7 @@ def main():
             'dtype': 'int64'
         }, sess)
         maml = Maml(model, tasks)
-        maml.train(sess, 3)
+        maml.train(sess, n_itr=3)
 
 
 if __name__ == "__main__":
